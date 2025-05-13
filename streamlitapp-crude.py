@@ -93,7 +93,7 @@ if uploaded_file is not None:
     # -----------------------------
     # 🔑 TOGETHER.AI API CALL
     # -----------------------------
-    api_key = "YOUR_API_KEY"  # Replace with your Together.ai API key
+    api_key = "895b590f32d6475e94c42ecd8c42ab90b0b83c507bea5ef59b9748a5787f38c5"  # Replace with your Together.ai API key
     together_url = "https://api.together.xyz/v1/chat/completions"
 
     headers = {
