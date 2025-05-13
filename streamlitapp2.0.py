@@ -1,6 +1,3 @@
-# 📦 INSTALL DEPENDENCIES
-# Install dependencies with `pip install streamlit prophet matplotlib pandas requests`
-
 import pandas as pd
 from prophet import Prophet
 import matplotlib.pyplot as plt
@@ -54,7 +51,7 @@ if uploaded_file is not None:
         plt.grid(True)
         st.pyplot(fig)
 
-        # Prepare forecast summary
+        # Prepare forecast summary for the last 7 days
         summary_df = forecast[["ds", "yhat"]].tail(7)
         summary_text = summary_df.to_string(index=False)
 
@@ -62,24 +59,21 @@ if uploaded_file is not None:
         # 🤖 AI-POWERED INSIGHT (Together.ai)
         # -----------------------------
 
-        # Define prompt
+        # Define prompt for quick and actionable insights
         prompt = f"""
-        You are a financial analyst and market expert.
+        You are a financial analyst specializing in commodity trading.
 
-        Given this 7-day price forecast for Paraxylene:
+        Based on this 7-day price forecast for Paraxylene:
 
         {summary_text}
 
-        Based on the forecast and the chart image (path: [forecast_plot]), answer the following questions:
-        1. Market trend (rising, falling, or neutral): What does the forecast indicate about the market direction for Paraxylene in the next 7 days?
-        2. Recommended trading strategy (long, short, hold): What would be the optimal trading strategy based on the predicted price movement?
-        3. Risks or opportunities: What are the key risks and potential opportunities to watch in the market over the next week for Paraxylene?
-        4. Hedging approach: How should I adjust my hedging strategy for Paraxylene in light of this price forecast?
-        5. Impact of supply and demand: How do current supply and demand dynamics influence the price forecast? Are there any external factors to consider (e.g., geopolitical, economic, or weather-related)?
-        6. Investment approach: Given the forecast, what investor approach is recommended for the next 7 days? Should investors hold, buy more, or sell?
-        7. Volatility and market sentiment: What is the expected market volatility based on the predicted price movement? How is the sentiment towards Paraxylene in the market right now?
+        Provide the following, in a concise and actionable format:
+        1. What is the market trend (rising, falling, or neutral)?
+        2. Should I take a long or short position in the next 7 days?
+        3. What are the key risks to watch that could impact this forecast?
+        4. How should I adjust my hedging strategy for the next 7 days?
 
-        Respond like a human expert providing actionable insights based on your analysis.
+        Please keep the response brief—traders need quick decisions.
         """
 
         # -----------------------------
@@ -97,7 +91,7 @@ if uploaded_file is not None:
             "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",  # You can change to LLaMA-3 if needed
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 600
+            "max_tokens": 300
         }
 
         response = requests.post(together_url, headers=headers, data=json.dumps(payload))
