@@ -1,0 +1,317 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Configuration ----------
+
+model Mailbox {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  displayName           String
+  personaName           String // first name used in sign-off, e.g. "Adyasha"
+  personaTone           String    @default("founder and hands-on consultant, peer to peer, confident and direct")
+  signOff               String    @default("Best,")
+  signatureHtml         String    @default("")
+  dailyDraftLimit       Int       @default(50)
+  allowSend             Boolean   @default(false)
+  // OAuth (refresh token is AES-256-GCM encrypted)
+  encryptedRefreshToken String?
+  accessToken           String?
+  accessTokenExpiresAt  DateTime?
+  graphUserId           String?
+  connectedAt           DateTime?
+  lastReplySyncAt       DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  regions   Region[]
+  campaigns Campaign[]
+  drafts    Draft[]
+}
+
+model Region {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  // [{ label, query, lat, lon, countryCode, radiusKm?, kind }]
+  locations           Json
+  timeZone            String
+  currency            String   @default("USD")
+  spelling            String   @default("en-GB") // en-GB | en-US
+  complianceNote      String   @default("")
+  complianceFooter    String   @default("") // appended to every email in this region
+  defaultMailboxId    String?
+  defaultMailbox      Mailbox? @relation(fields: [defaultMailboxId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  campaigns Campaign[]
+}
+
+model ListType {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  name        String
+  status      ListTypeStatus @default(active)
+  // ListTypeConfig (see src/lib/listTypes/schema.ts)
+  config      Json
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  campaigns Campaign[]
+}
+
+enum ListTypeStatus {
+  active
+  paused
+}
+
+model ProofPoint {
+  id        String   @id @default(cuid())
+  label     String
+  text      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Exclusion {
+  id        String          @id @default(cuid())
+  kind      ExclusionKind
+  // normalised: bare domain ("acme.com") or lower-case company name
+  value     String
+  reason    ExclusionReason
+  note      String          @default("")
+  createdAt DateTime        @default(now())
+
+  @@unique([kind, value])
+}
+
+enum ExclusionKind {
+  domain
+  company
+}
+
+enum ExclusionReason {
+  blocked
+  client
+  not_interested
+  rejected
+  bounced
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model VoiceExample {
+  id        String           @id @default(cuid())
+  kind      VoiceExampleKind
+  subject   String           @default("")
+  before    String? // AI draft before Adyasha's edit (kind = edit)
+  after     String // approved text
+  createdAt DateTime         @default(now())
+}
+
+enum VoiceExampleKind {
+  seed
+  edit
+}
+
+// ---------- Prospects ----------
+
+model Company {
+  id          String   @id @default(cuid())
+  domain      String   @unique
+  name        String
+  industry    String?
+  sizeLabel   String?
+  location    String? // "Waltham, MA, US"
+  area        String? // neighbourhood / city used for field-visit grouping
+  address     String?
+  phone       String?
+  hours       String?
+  linkedinUrl String?
+  apolloOrgId String?
+  createdAt   DateTime @default(now())
+
+  prospect Prospect?
+  contacts Contact[]
+}
+
+model Campaign {
+  id                String         @id @default(cuid())
+  regionId          String
+  region            Region         @relation(fields: [regionId], references: [id])
+  listTypeId        String
+  listType          ListType       @relation(fields: [listTypeId], references: [id])
+  mailboxId         String?
+  mailbox           Mailbox?       @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+  targetCount       Int
+  verticalText      String? // for "vertical" list types
+  status            CampaignStatus @default(created)
+  pendingConfirmation Json? // { stage, message, estimate }
+  estimatedCredits  Int            @default(0)
+  creditsUsed       Int            @default(0)
+  estimatedUsd      Float          @default(0)
+  error             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  prospects Prospect[]
+  logs      CampaignLog[]
+  calls     ExternalCall[]
+}
+
+enum CampaignStatus {
+  created
+  awaiting_run_confirmation
+  discovering
+  awaiting_enrich_confirmation
+  enriching
+  writing
+  completed
+  failed
+  cancelled
+}
+
+model CampaignLog {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  level      String   @default("info")
+  message    String
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId, createdAt])
+}
+
+model Prospect {
+  id            String         @id @default(cuid())
+  campaignId    String
+  campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // unique: a company belongs to exactly one campaign, ever (cross-campaign, cross-mailbox dedupe)
+  companyId     String         @unique
+  company       Company        @relation(fields: [companyId], references: [id])
+  score         Int?
+  tier          Tier?
+  whyNow        String?
+  signal        String?
+  pitch         String?
+  confidence    String? // "high" | "medium" | "low"
+  // [{ url, title, snippet }]
+  evidence      Json           @default("[]")
+  status        ProspectStatus @default(found)
+  replySummary  String?
+  meetingBooked Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  drafts  Draft[]
+  contact Contact?
+}
+
+enum Tier {
+  hot
+  warm
+  cold
+}
+
+enum ProspectStatus {
+  found
+  qualified
+  disqualified
+  contact_found
+  no_contact
+  linkedin_phone_only
+  drafted
+  approved
+  sent
+  replied
+  out_of_office
+  bounced
+  not_interested
+  rejected
+}
+
+model Contact {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  prospectId    String?   @unique
+  prospect      Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  apolloId      String?
+  firstName     String?
+  lastName      String?
+  name          String
+  title         String?
+  email         String?
+  emailStatus   String? // verified | unverified | unavailable ...
+  linkedinUrl   String?
+  phone         String?
+  enrichedAt    DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model Draft {
+  id                String      @id @default(cuid())
+  prospectId        String
+  prospect          Prospect    @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  mailboxId         String
+  mailbox           Mailbox     @relation(fields: [mailboxId], references: [id])
+  kind              DraftKind   @default(initial)
+  subject           String
+  body              String // plain text body (paragraphs separated by blank lines), without signature
+  originalBody      String // what Claude wrote, kept to learn from edits
+  toEmail           String
+  status            DraftStatus @default(pending_review)
+  regenerateNote    String?
+  scheduledFor      DateTime? // prospect's local morning
+  graphMessageId    String? // the Outlook draft id
+  sentMessageId     String? // id in Sent Items once sent
+  conversationId    String?
+  outlookCreatedAt  DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([mailboxId, outlookCreatedAt])
+}
+
+enum DraftKind {
+  initial
+  followup1
+  followup2
+}
+
+enum DraftStatus {
+  pending_review
+  approved
+  rejected
+  queued_to_send
+  sent
+  failed
+}
+
+// ---------- Audit ----------
+
+model ExternalCall {
+  id         String    @id @default(cuid())
+  provider   String // anthropic | apollo | brave | graph | nominatim | web
+  operation  String
+  // cost in the provider's unit
+  cost       Float     @default(0)
+  costUnit   String    @default("usd") // usd | credits | queries | none
+  status     String    @default("ok")
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  meta       Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([provider, createdAt])
+}

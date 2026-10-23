@@ -72,3 +72,9 @@ This MVP enables predictive analytics and AI-powered financial insights for **Al
    - If prices increase faster than anticipated, consider taking partial profits to lock in gains while maintaining a long position.
 
 5. A final actionable, insightful summary: Based on the 7-day price forecast, aluminum prices are expected to rise, making it an attractive investment opportunity for the next week. Investors should consider entering a long position, setting a target price, and implementing a stop-loss order to manage risk. Monitor market news and sentiment for potential risks and opportunities to maximize profit or adjust the trading strategy as necessary.
+
+---
+
+## Sales Sphere (lead-gen agent)
+
+The AdySphere lead-generation and outreach agent lives in [`sales-sphere/`](sales-sphere/README.md).
